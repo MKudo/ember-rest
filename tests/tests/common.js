@@ -14,3 +14,13 @@ var Contact = Ember.Resource.extend({
     return this.get('first_name') + ' ' + this.get('last_name');
   }).property('first_name', 'last_name')
 });
+
+
+var Group = Ember.Resource.extend({
+  resourceUrl:        '/group',
+  resourceName:       'group',
+  resourceProperties: {
+    'group_name': null,
+    'contacts': Contact
+  },
+});

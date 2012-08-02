@@ -32,6 +32,10 @@ if (Ember.ResourceAdapter === undefined) {
       params.url = this._resourceUrl();
       params.dataType = 'json';
 
+      if (params.contentType === 'application/json') {
+        params.processData = false;
+      }
+
       if (this._prepareResourceRequest !== undefined) {
         this._prepareResourceRequest(params);
       }
@@ -73,17 +77,22 @@ Ember.Resource = Ember.Object.extend(Ember.ResourceAdapter, Ember.Copyable, {
     Duplicate properties from another resource
 
     * `source` -- an Ember.Resource object
-    * `props` -- the array of properties to be duplicated;
+    * `props` -- the array/hash of properties to be duplicated;
          defaults to `resourceProperties`
   */
   duplicateProperties: function(source, props) {
     var prop;
 
     if (props === undefined) props = this.resourceProperties;
-
-    for(var i = 0; i < props.length; i++) {
-      prop = props[i];
-      this.set(prop, source.get(prop));
+    if (props.length === undefined) {
+      for (var key in props) {
+        this.set(key, source.get(key));
+      }
+    } else {
+      for(var i = 0; i < props.length; i++) {
+        prop = props[i];
+        this.set(prop, source.get(prop));
+      }
     }
   },
 
@@ -115,10 +124,21 @@ Ember.Resource = Ember.Object.extend(Ember.ResourceAdapter, Ember.Copyable, {
         ret = {};
 
     ret[name] = {};
-    for(var i = 0; i < props.length; i++) {
-      prop = props[i];
-      ret[name][prop] = this.serializeProperty(prop);
+    if (props.length === undefined) {
+      for (var key in props) {
+        ret[name][key] = this.serializeProperty(key);
+      }
+    } else {
+      for(var i = 0; i < props.length; i++) {
+        prop = props[i];
+        ret[name][prop] = this.serializeProperty(prop);
+      }
     }
+
+    if (this.connectionType === 'JAX-RS') {
+      return ret[this.resourceName]
+    }
+
     return ret;
   },
 
@@ -128,7 +148,21 @@ Ember.Resource = Ember.Object.extend(Ember.ResourceAdapter, Ember.Copyable, {
     Override to provide custom serialization
   */
   serializeProperty: function(prop) {
-    return this.get(prop);
+    var value = this.get(prop);
+
+    if ((value) && (value.length !== undefined) && ((typeof value) !== 'string')) {
+      var records = value;
+      value = [];
+      for (var i = 0; i < records.length; i++) {
+        if ((records[i]) && (records[i].serialize !== undefined)) {
+          value[i] = records[i].serialize();
+        } else {
+          value[i] = records[i];
+        }
+      }
+    }
+
+    return value;
   },
 
   /**
@@ -151,7 +185,68 @@ Ember.Resource = Ember.Object.extend(Ember.ResourceAdapter, Ember.Copyable, {
     Override to provide custom serialization
   */
   deserializeProperty: function(prop, value) {
-    this.set(prop, value);
+    var props = this.resourceProperties;
+
+    if (props.length === undefined) {
+      var type = props[prop];
+
+      if (type === undefined) {
+        this.set(prop, value);
+      } else if (type === null) {
+        this.set(prop, value);
+      } else if (type === 'Date') {
+        var date = new Date();
+        date.setTime(value);
+
+        var yy = date.getYear();
+        var mm = date.getMonth() + 1;
+        var dd = date.getDate();
+
+        if (yy < 2000) { yy += 1900; }
+        if (mm < 10) { mm = "0" + mm; }
+        if (dd < 10) { dd = "0" + dd; }
+
+        this.set(prop, (yy + "-" + mm + "-" + dd));
+      } else if (type === 'DateTime') {
+        var date = new Date();
+        date.setTime(value);
+
+        var yy = date.getYear();
+        var mm = date.getMonth() + 1;
+        var dd = date.getDate();
+        var hh = date.getHours();
+        var mi = date.getMinutes();
+        var ss = date.getSeconds();
+
+        if (yy < 2000) { yy += 1900; }
+        if (mm < 10) { mm = "0" + mm; }
+        if (dd < 10) { dd = "0" + dd; }
+        if (hh < 10) { hh = "0" + hh; }
+        if (mi < 10) { mi = "0" + mi; }
+        if (ss < 10) { ss = "0" + ss; }
+
+        this.set(prop, (yy + "-" + mm + "-" + dd + " " + hh + ":" + mi + ":" + ss));
+      } else {
+        if (type.prototype.deserialize !== undefined) {
+          if (value.length === undefined) {
+            var obj = type.create();
+            obj.deserialize(value);
+            this.set(prop, obj);
+          } else {
+            var records = [];
+            for (var i = 0; i < value.length; i++) {
+              records[i] = type.create();
+              records[i].deserialize(value[i]);
+            }
+            this.set(prop, records);
+          }
+        } else {
+          this.set(prop, value);
+        }
+      }
+    } else {
+      this.set(prop, value);
+    }
   },
 
   /**
@@ -160,9 +255,13 @@ Ember.Resource = Ember.Object.extend(Ember.ResourceAdapter, Ember.Copyable, {
     REQUIRED: `id`
   */
   findResource: function() {
-    var self = this;
+    var self = this, params = {type: 'GET'};
 
-    return this._resourceRequest({type: 'GET'})
+    if (this.connectionType === 'JAX-RS') {
+      params.contentType === 'application/json'
+    }
+
+    return this._resourceRequest(params)
       .done(function(json) {
         self.deserialize(json);
       });
@@ -179,7 +278,7 @@ Ember.Resource = Ember.Object.extend(Ember.ResourceAdapter, Ember.Copyable, {
     REQUIRED: `properties` and `name` (see note above)
   */
   saveResource: function() {
-    var self = this;
+    var self = this, params = {};
 
     if (this.validate !== undefined) {
       var error = this.validate();
@@ -192,8 +291,14 @@ Ember.Resource = Ember.Object.extend(Ember.ResourceAdapter, Ember.Copyable, {
       }
     }
 
-    return this._resourceRequest({type: this.isNew() ? 'POST' : 'PUT',
-                                  data: this.serialize()})
+    if (this.connectionType === 'JAX-RS') {
+      params.contentType === 'application/json'
+    }
+
+    params.type = this.isNew() ? 'POST' : 'PUT';
+    params.data = this.serialize();
+
+    return this._resourceRequest(params)
       .done(function(json) {
         // Update properties
         if (json) self.deserialize(json);
@@ -204,7 +309,13 @@ Ember.Resource = Ember.Object.extend(Ember.ResourceAdapter, Ember.Copyable, {
     Delete resource
   */
   destroyResource: function() {
-    return this._resourceRequest({type: 'DELETE'});
+    var params = {type: 'DELETE'};
+
+    if (this.connectionType === 'JAX-RS') {
+      params.contentType === 'application/json'
+    }
+
+    return this._resourceRequest(params);
   },
 
   /**
@@ -288,9 +399,13 @@ Ember.ResourceController = Ember.ArrayController.extend(Ember.ResourceAdapter, {
     Replace this controller's contents with an request to `url`
   */
   findAll: function() {
-    var self = this;
+    var self = this, params = {type: 'GET'};
 
-    return this._resourceRequest({type: 'GET'})
+    if (this.connectionType === 'JAX-RS') {
+      params.contentType === 'application/json'
+    }
+
+    return this._resourceRequest(params)
       .done(function(json) {
         self.clearAll();
         self.loadAll(json);

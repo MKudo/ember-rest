@@ -136,3 +136,100 @@ test("should delete a resource via ajax", function() {
   server.respond();
 });
 
+test("tree should be copyable", function() {
+  var props1 = {id: 1, first_name: "Joe", last_name: "Blow"};
+  var props2 = {id: 2, first_name: "Some", last_name: "One"};
+  var groupProp = {id: 1, group_name: "Test"};
+
+  var contact1 = Contact.create(props1);
+  var contact2 = Contact.create(props2);
+  var group = Group.create(groupProp);
+
+  group.set('contacts', [contact1, contact2]);
+
+  var copy = group.copy();
+
+  equal(copy.get("id"),         group.get("id"),         "group id matches");
+  equal(copy.get("group_name"), group.get("group_name"), "group_name matches");
+
+  equal(copy.get("contacts")[0].get('id'),         contact1.get("id"),         "contact1 id matches");
+  equal(copy.get("contacts")[0].get("first_name"), contact1.get("first_name"), "contact1 first_name matches");
+  equal(copy.get("contacts")[0].get("last_name"),  contact1.get("last_name"),  "contact1 last_name matches");
+  equal(copy.get("contacts")[1].get("id"),         contact2.get("id"),         "contact2 id matches");
+  equal(copy.get("contacts")[1].get("first_name"), contact2.get("first_name"), "contact2 first_name matches");
+  equal(copy.get("contacts")[1].get("last_name"),  contact2.get("last_name"),  "contact2 last_name matches");
+});
+
+test("tree should serialize its properties to JSON", function() {
+  var props1 = {id: 1, first_name: "Joe", last_name: "Blow"};
+  var props2 = {id: 2, first_name: "Some", last_name: "One"};
+  var groupProp = {id: 1, group_name: "Test"};
+
+  var contact1 = Contact.create(props1);
+  var contact2 = Contact.create(props2);
+  var group = Group.create(groupProp);
+
+  group.set('contacts', [contact1, contact2]);
+
+  var serialized = group.serialize();
+
+  equal(serialized.group.group_name, groupProp.group_name, "group_name matches");
+  equal(serialized.group.contacts[0].contact.first_name, props1.first_name, "contact1 first_name matches");
+  equal(serialized.group.contacts[0].contact.last_name,  props1.last_name,  "contact1 last_name matches");
+  equal(serialized.group.contacts[1].contact.first_name, props2.first_name, "contact2 first_name matches");
+  equal(serialized.group.contacts[1].contact.last_name,  props2.last_name,  "contact2 last_name matches");
+});
+
+test("tree should serialize its properties to JAX-RS formed JSON", function() {
+  var props1 = {id: 1, first_name: "Joe", last_name: "Blow"};
+  var props2 = {id: 2, first_name: "Some", last_name: "One"};
+  var groupProp = {id: 1, group_name: "Test"};
+
+  var contact1 = Contact.create(props1);
+  var contact2 = Contact.create(props2);
+  var group = Group.create(groupProp);
+
+  group.set('contacts', [contact1, contact2]);
+  group.set('connectionType', 'JAX-RS');
+  contact1.set('connectionType', 'JAX-RS');
+  contact2.set('connectionType', 'JAX-RS');
+
+  var serialized = group.serialize();
+
+  equal(serialized.group_name, groupProp.group_name, "group_name matches");
+  equal(serialized.contacts[0].first_name, props1.first_name, "contact1 first_name matches");
+  equal(serialized.contacts[0].last_name,  props1.last_name,  "contact1 last_name matches");
+  equal(serialized.contacts[1].first_name, props2.first_name, "contact2 first_name matches");
+  equal(serialized.contacts[1].last_name,  props2.last_name,  "contact2 last_name matches");
+});
+
+test("tree should deserialize its properties to JSON", function() {
+  var props = {id: 1, group_name: "Test", contacts: [{contact:{first_name: "Joe", last_name: "Blow"}}, {contact:{first_name: "Some", last_name: "One"}}]};
+  var group = Group.create();
+
+  group.deserialize(props);
+
+  equal(group.get("id"),         props.id,         "group id matches");
+  equal(group.get("group_name"), props.group_name, "group_name matches");
+
+  equal(group.get("contacts")[0].get("first_name"), props.contacts[0].first_name, "contact1 first_name matches");
+  equal(group.get("contacts")[0].get("last_name"),  props.contacts[0].last_name,  "contact1 last_name matches");
+  equal(group.get("contacts")[1].get("first_name"), props.contacts[1].first_name, "contact2 first_name matches");
+  equal(group.get("contacts")[1].get("last_name"),  props.contacts[1].last_name,  "contact2 last_name matches");
+});
+
+test("tree should deserialize its properties to JAX-RS formed JSON", function() {
+  var props = {id: 1, group_name: "Test", contacts: [{first_name: "Joe", last_name: "Blow"}, {first_name: "Some", last_name: "One"}]};
+  var group = Group.create();
+
+  group.deserialize(props);
+
+  equal(group.get("id"),         props.id,         "group id matches");
+  equal(group.get("group_name"), props.group_name, "group_name matches");
+
+  equal(group.get("contacts")[0].get("first_name"), props.contacts[0].first_name, "contact1 first_name matches");
+  equal(group.get("contacts")[0].get("last_name"),  props.contacts[0].last_name,  "contact1 last_name matches");
+  equal(group.get("contacts")[1].get("first_name"), props.contacts[1].first_name, "contact2 first_name matches");
+  equal(group.get("contacts")[1].get("last_name"),  props.contacts[1].last_name,  "contact2 last_name matches");
+});
+
