@@ -194,38 +194,6 @@ Ember.Resource = Ember.Object.extend(Ember.ResourceAdapter, Ember.Copyable, {
         this.set(prop, value);
       } else if (type === null) {
         this.set(prop, value);
-      } else if (type === 'Date') {
-        var date = new Date();
-        date.setTime(value);
-
-        var yy = date.getYear();
-        var mm = date.getMonth() + 1;
-        var dd = date.getDate();
-
-        if (yy < 2000) { yy += 1900; }
-        if (mm < 10) { mm = "0" + mm; }
-        if (dd < 10) { dd = "0" + dd; }
-
-        this.set(prop, (yy + "-" + mm + "-" + dd));
-      } else if (type === 'DateTime') {
-        var date = new Date();
-        date.setTime(value);
-
-        var yy = date.getYear();
-        var mm = date.getMonth() + 1;
-        var dd = date.getDate();
-        var hh = date.getHours();
-        var mi = date.getMinutes();
-        var ss = date.getSeconds();
-
-        if (yy < 2000) { yy += 1900; }
-        if (mm < 10) { mm = "0" + mm; }
-        if (dd < 10) { dd = "0" + dd; }
-        if (hh < 10) { hh = "0" + hh; }
-        if (mi < 10) { mi = "0" + mi; }
-        if (ss < 10) { ss = "0" + ss; }
-
-        this.set(prop, (yy + "-" + mm + "-" + dd + " " + hh + ":" + mi + ":" + ss));
       } else {
         if (type.prototype.deserialize !== undefined) {
           if (value.length === undefined) {
