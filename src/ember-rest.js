@@ -36,6 +36,12 @@ if (Ember.ResourceAdapter === undefined) {
         params.processData = false;
       }
 
+      if (!params.processData && ((typeof params.data) !== "string")) {
+        if (JSON) {
+          params.data = JSON.stringify(params.data);
+        }
+      }
+
       if (this._prepareResourceRequest !== undefined) {
         this._prepareResourceRequest(params);
       }
